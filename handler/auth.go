@@ -33,14 +33,14 @@ func Login(c *fiber.Ctx) error {
 
 	var user model.User
 	db := database.DB
-	if err := db.First(&user, "email = ?", inp.Email); err != nil {
+	if err := db.First(&user, "email = ?", inp.Email).Error; err != nil {
 		log.Println(err)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"details": "User not found",
 		})
 	}
 	if ok := IsCorrectPassword(user.Password, inp.Password); !ok {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"details": "Cannot login with the credentials",
 		})
 	}
@@ -49,7 +49,7 @@ func Login(c *fiber.Ctx) error {
 		"user": user.ID,
 		"exp": time.Now().Add(time.Hour * 3).Unix(),
 	})
-	token_str, err := token.SignedString(config.Getenv("JWT_SECRET"))
+	token_str, err := token.SignedString([]byte(config.Getenv("JWT_SECRET")))
 	if err != nil {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
 			"details": fmt.Sprintf("Cannot sign token. %v", err),
