@@ -103,3 +103,7 @@ func Register(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusCreated)
 }
+
+func UserInfo(c *fiber.Ctx) error {
+	return c.SendStatus(200)
+}
