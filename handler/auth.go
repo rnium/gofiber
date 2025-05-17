@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/mail"
@@ -12,7 +11,6 @@ import (
 	"github.com/rnium/gofiber/config"
 	"github.com/rnium/gofiber/database"
 	"github.com/rnium/gofiber/model"
-	"gorm.io/gorm"
 )
 
 func Login(c *fiber.Ctx) error {
@@ -107,28 +105,68 @@ func Register(c *fiber.Ctx) error {
 }
 
 func UserInfo(c *fiber.Ctx) error {
-	user_token := c.Locals("user").(*jwt.Token)
-	claims := user_token.Claims.(jwt.MapClaims)
-	uid, ok := claims["user"].(string)
+	uid, ok := getAuthUserId(c)
 	if !ok {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"details": "Cannot get the user id",
 		})
 	}
-	var user model.User
-	db := database.DB
-	if err := db.First(&user, "id = ?", uid).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"details": "User not found",
-			})
-		} else {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"details": "Cannot get the user",
-			})
-		}
+	user, err := getUser(c, uid)
+	if err != nil {
+		return err
 	}
 	return c.JSON(user)
+}
 
+func SetPassword(c *fiber.Ctx) error {
+	type Input struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword string `json:"new_password"`
+		ReNewPassword string `json:"retype_new_password"`
+	}
+	var inp Input
+	if err := c.BodyParser(&inp); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"details": "Check your data",
+		})
+	}
+	if len(inp.NewPassword) < 4 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"details": "Password should have atleast 4 characters",
+		})
+	} else if inp.NewPassword != inp.ReNewPassword {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"details": "New passwords doesn't match",
+		})
+	}
 
+	uid, ok := getAuthUserId(c)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"details": "Cannot get the user id",
+		})
+	}
+	user, err := getUser(c, uid)
+	if err != nil {
+		return err
+	}
+	if !IsCorrectPassword(user.Password, inp.CurrentPassword) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"details": "Incorrect current password",
+		})
+	}
+	new_password_hashed, err := HashPassword(inp.NewPassword)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"details": err.Error(),
+		})
+	}
+	db := database.DB
+	err = db.Model(&model.User{}).Where("id = ?", uid).Update("password", new_password_hashed).Error
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"details": err.Error(),
+		})
+	}
+	return c.SendStatus(fiber.StatusOK)
 }

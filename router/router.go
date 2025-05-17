@@ -18,4 +18,5 @@ func SetupRouters(app *fiber.App) {
 	// user
 	usr_api := api.Group("/user", middleware.Protected)
 	usr_api.Get("/me", handler.UserInfo)
+	usr_api.Post("/setpassword", handler.SetPassword)
 }

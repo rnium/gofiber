@@ -16,7 +16,7 @@ var Protected = jwtware.New(jwtware.Config{
 
 func handleError(c *fiber.Ctx, err error) error {
 	if errors.Is(err, jwtware.ErrJWTMissingOrMalformed) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"details": "Missing or malformed JWT",
 		})
 	}

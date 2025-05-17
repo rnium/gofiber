@@ -13,6 +13,6 @@ func main() {
 	database.Connect()
 	app := fiber.New()
 	router.SetupRouters(app)
-	log.Fatal(app.Listen(":8080"))
+	log.Fatal(app.Listen(":9000"))
 	
 }
