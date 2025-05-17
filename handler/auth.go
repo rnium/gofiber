@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/mail"
@@ -11,6 +12,7 @@ import (
 	"github.com/rnium/gofiber/config"
 	"github.com/rnium/gofiber/database"
 	"github.com/rnium/gofiber/model"
+	"gorm.io/gorm"
 )
 
 func Login(c *fiber.Ctx) error {
@@ -46,8 +48,8 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user": user.ID,
-		"exp": time.Now().Add(time.Hour * 3).Unix(),
+		"user": fmt.Sprint(user.ID),
+		"exp": time.Now().Add(time.Hour * 2).Unix(),
 	})
 	token_str, err := token.SignedString([]byte(config.Getenv("JWT_SECRET")))
 	if err != nil {
@@ -105,5 +107,28 @@ func Register(c *fiber.Ctx) error {
 }
 
 func UserInfo(c *fiber.Ctx) error {
-	return c.SendStatus(200)
+	user_token := c.Locals("user").(*jwt.Token)
+	claims := user_token.Claims.(jwt.MapClaims)
+	uid, ok := claims["user"].(string)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"details": "Cannot get the user id",
+		})
+	}
+	var user model.User
+	db := database.DB
+	if err := db.First(&user, "id = ?", uid).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"details": "User not found",
+			})
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"details": "Cannot get the user",
+			})
+		}
+	}
+	return c.JSON(user)
+
+
 }
