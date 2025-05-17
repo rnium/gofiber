@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rnium/gofiber/config"
@@ -15,7 +16,7 @@ import (
 
 func Login(c *fiber.Ctx) error {
 	type Input struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 	inp := Input{}
@@ -47,7 +48,7 @@ func Login(c *fiber.Ctx) error {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user": fmt.Sprint(user.ID),
-		"exp": time.Now().Add(time.Hour * 2).Unix(),
+		"exp":  time.Now().Add(time.Hour * 2).Unix(),
 	})
 	token_str, err := token.SignedString([]byte(config.Getenv("JWT_SECRET")))
 	if err != nil {
@@ -58,12 +59,11 @@ func Login(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"token": token_str})
 }
 
-
 func Register(c *fiber.Ctx) error {
 	type Input struct {
-		Name string `json:"name"`
-		Email string `json:"email"`
-		Password string `json:"password"`
+		Name       string `json:"name"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
 		RePassword string `json:"re_password"`
 	}
 	inp := Input{}
@@ -90,8 +90,8 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 	usr := model.User{
-		Name: inp.Name,
-		Email: inp.Email,
+		Name:     inp.Name,
+		Email:    inp.Email,
 		Password: hashed_password,
 	}
 	db := database.DB
@@ -120,9 +120,9 @@ func UserInfo(c *fiber.Ctx) error {
 
 func SetPassword(c *fiber.Ctx) error {
 	type Input struct {
-		CurrentPassword string `json:"current_password"`
-		NewPassword string `json:"new_password"`
-		ReNewPassword string `json:"retype_new_password"`
+		CurrentPassword string `json:"current_password" validate:"required"`
+		NewPassword     string `json:"new_password" validate:"required"`
+		ReNewPassword   string `json:"retype_new_password" validate:"required"`
 	}
 	var inp Input
 	if err := c.BodyParser(&inp); err != nil {
@@ -130,11 +130,13 @@ func SetPassword(c *fiber.Ctx) error {
 			"details": "Check your data",
 		})
 	}
-	if len(inp.NewPassword) < 4 {
+	validate := validator.New()
+	if err := validate.Struct(inp); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"details": "Password should have atleast 4 characters",
+			"details": "Some required field is missing",
 		})
-	} else if inp.NewPassword != inp.ReNewPassword {
+	}
+	if inp.NewPassword != inp.ReNewPassword {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"details": "New passwords doesn't match",
 		})
